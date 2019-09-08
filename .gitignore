@@ -9,6 +9,9 @@ __pycache__/
 # remove vscode file
 .vscode
 
+# remove idea file
+.idea
+
 # Distribution / packaging
 .Python
 build/

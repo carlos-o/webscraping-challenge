@@ -1,12 +1,14 @@
 import logging.config
-import os
+from os import getcwd
+from scraper import init_scraper
 
-logging.config.fileConfig(os.getcwd() + '/logging.conf')
+# obtain root project
+logging.config.fileConfig(getcwd() + '/logging.conf')
 logger = logging.getLogger('scrapper')
 
 
 def main():
-    logger.info("test logger")
+    init_scraper()
 
 
 if __name__ == '__main__':
