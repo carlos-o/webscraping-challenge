@@ -12,6 +12,9 @@ __pycache__/
 # remove idea file
 .idea
 
+# remove cvs
+books_scraper.csv
+
 # Distribution / packaging
 .Python
 build/

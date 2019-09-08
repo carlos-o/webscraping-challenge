@@ -1,4 +1,6 @@
 from bs4 import BeautifulSoup
+from pandas import DataFrame
+from os import getcwd
 import logging
 import requests
 
@@ -23,7 +25,6 @@ def get_index_page(url: str) -> BeautifulSoup:
     except Exception as e:
         logger.error("Request Problem %s" % str(e))
         raise ConnectionError(str(e))
-    logger.info("")
     return BeautifulSoup(content.text, 'html.parser')
 
 
@@ -78,6 +79,23 @@ def get_book_data(scraper: BeautifulSoup) -> dict:
     return book_data
 
 
+def export_cvs(books_data: dict) -> bool:
+    """
+        Method to create a csv file from a data dictionary
+
+        :param books_data: dictionary with all books information
+        :type books_data: dict
+        :return: True
+    """
+    logger.info("load books data into dataframe to then generate a csv file")
+    df = DataFrame(books_data, columns=['Title', 'Price', 'Stock', 'Category', 'Cover', 'UPC', 'Product Type',
+                                        'Price (excl. tax)', 'Price (incl. tax)', 'Tax', 'Availability',
+                                        'Number of reviews'])
+    logger.info("export csv file in the main project root")
+    df.to_csv(getcwd() + '/books_scraper.csv', index=None, header=True)
+    return True
+
+
 def init_scraper() -> bool:
     """
         Start the process of obtaining the information on the website
@@ -112,5 +130,5 @@ def init_scraper() -> bool:
             data_frame["Number of reviews"].append(book_data.get('Number of reviews'))
             logger.info("The book {} has been stored".format(book_data.get('Title')))
         logger.info("Finished the scrape of the page {}".format(number))
-    print(data_frame)
+    export_cvs(data_frame)
     return True
