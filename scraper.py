@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from pandas import DataFrame
 from os import getcwd
+from multiprocessing import Pool
 import logging
 import requests
 
@@ -41,31 +42,41 @@ def get_total_pages(data: BeautifulSoup) -> int:
     return total_pages
 
 
-def get_book_data(scraper: BeautifulSoup) -> dict:
+def export_cvs(books_data: list) -> bool:
+    """
+        Method to create a csv file from a data dictionary
+
+        :param books_data: a list with dictionary with all books information
+        :type books_data: list
+        :return: True
+    """
+    logger.info("load books data into dataframe to then generate a csv file")
+    df = DataFrame(books_data, columns=['Title', 'Price', 'Stock', 'Category', 'Cover', 'UPC', 'Product Type',
+                                        'Price (excl. tax)', 'Price (incl. tax)', 'Tax', 'Availability',
+                                        'Number of reviews'])
+    logger.info("export csv file in the main project root")
+    df.to_csv(getcwd() + '/books_scraper.csv', index=None, header=True)
+    return True
+
+
+def get_book_data(book_page: str) -> dict:
     """
         Obtain all information of the books
 
-        :param scraper: parser of the website
-        :type scraper: BeautifulSoup
+        :param book_page: url with book information
+        :type book_page: str
         :return: dictionary with all book data
     """
-    book_data = {"Title": "", "Price": "", "Stock": "", "Category": "", "Cover": "", "UPC": "", "Product Type": "",
-                 "Price (excl. tax)": "", "Price (incl. tax)": "", "Tax": "", "Availability": "",
-                 "Number of reviews": ""}
-    logger.info("Obtain the title")
+    book_data = {}
+    scraper = get_index_page(book_page)
     book_data['Title'] = scraper.select_one('.product_main h1').get_text(strip=True).\
         encode('ascii', 'ignore').decode('ascii')
-    logger.info("Obtain the price")
     book_data['Price'] = scraper.find('p', class_='price_color').text.encode('ascii', 'ignore').decode('ascii')
-    logger.info("Obtain the stock")
     pre_stock = scraper.select_one('.availability').get_text(strip=True)
     book_data['Stock'] = "".join(filter(str.isdigit, pre_stock))
-    logger.info("Obtain the category")
     book_data['Category'] = scraper.find('ul', class_="breadcrumb").findAll('li')[2].select_one('a').get_text(strip=True)
-    logger.info("Obtain the cover")
     pre_cover = scraper.select_one(".thumbnail .carousel-inner .item img")['src'].strip()
     book_data['Cover'] = URL + "/".join(pre_cover.split('/')[2:])
-    logger.info("Obtain additional information (upc, tax, product type, etc)")
     product_information = []
     for row in scraper.select('.product_page table td'):
         product_information.append(row.text.encode('ascii', 'ignore').decode('ascii'))
@@ -79,23 +90,6 @@ def get_book_data(scraper: BeautifulSoup) -> dict:
     return book_data
 
 
-def export_cvs(books_data: dict) -> bool:
-    """
-        Method to create a csv file from a data dictionary
-
-        :param books_data: dictionary with all books information
-        :type books_data: dict
-        :return: True
-    """
-    logger.info("load books data into dataframe to then generate a csv file")
-    df = DataFrame(books_data, columns=['Title', 'Price', 'Stock', 'Category', 'Cover', 'UPC', 'Product Type',
-                                        'Price (excl. tax)', 'Price (incl. tax)', 'Tax', 'Availability',
-                                        'Number of reviews'])
-    logger.info("export csv file in the main project root")
-    df.to_csv(getcwd() + '/books_scraper.csv', index=None, header=True)
-    return True
-
-
 def init_scraper() -> bool:
     """
         Start the process of obtaining the information on the website
@@ -105,30 +99,15 @@ def init_scraper() -> bool:
     scraper = get_index_page(URL)
     logger.info("Obtain total number of pages")
     last_number_page = get_total_pages(scraper)
-    data_frame = {"Title": [], "Price": [], "Stock": [], "Category": [], "Cover": [], "UPC": [], "Product Type": [],
-                  "Price (excl. tax)": [], "Price (incl. tax)": [], "Tax": [], "Availability": [],
-                  "Number of reviews": []}
     logger.info("Scraper data page by page")
+    book_list = []
     for number in range(1, last_number_page + 1):
         logger.info("Get the information the page number {}".format(number))
         current_page = get_index_page(URL + 'catalogue/page-{}.html'.format(number))
         for product in current_page.select('.product_pod'):
-            book_page = get_index_page(URL + "/catalogue/" + product.select_one('a')['href'].strip())
-            logger.info("Start the book scraper")
-            book_data = get_book_data(book_page)
-            data_frame["Title"].append(book_data.get('Title'))
-            data_frame["Price"].append(book_data.get('Price'))
-            data_frame["Stock"].append(book_data.get('Stock'))
-            data_frame["Category"].append(book_data.get('Category'))
-            data_frame["Cover"].append(book_data.get('Cover'))
-            data_frame["UPC"].append(book_data.get('UPC'))
-            data_frame["Product Type"].append(book_data.get('Product Type'))
-            data_frame["Price (excl. tax)"].append(book_data.get('Price (excl. tax)'))
-            data_frame["Price (incl. tax)"].append(book_data.get('Price (incl. tax)'))
-            data_frame["Tax"].append(book_data.get('Tax'))
-            data_frame["Availability"].append(book_data.get('Availability'))
-            data_frame["Number of reviews"].append(book_data.get('Number of reviews'))
-            logger.info("The book {} has been stored".format(book_data.get('Title')))
-        logger.info("Finished the scrape of the page {}".format(number))
-    export_cvs(data_frame)
+            book_list.append(URL + "/catalogue/" + product.select_one('a')['href'].strip())
+    logger.info("Start the books scraper")
+    with Pool() as multiprocess:
+        book_data = multiprocess.map(get_book_data, book_list)
+    export_cvs(book_data)
     return True
